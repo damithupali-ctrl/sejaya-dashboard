@@ -112,7 +112,7 @@
                 <p>Sejaya Micro Credit Limited</p>
             </div>
             <div class="brand-logo-box">
-                <img src="SMCL.LOGO.png">
+                <img src="SMCL.LOGO.png" alt="Sejaya Logo">
             </div>
         </div>
         <select id="month-select" class="select-large" onchange="updateDashboard()">
@@ -312,7 +312,7 @@
             });
     }
 
-    function setupIndicatorBadge(elementId, target, actual) {
+    function setupIndicatorBadge(elementId, target, actual, isInverse = false) {
         const badgeEl = document.getElementById(elementId);
         if(!badgeEl) return;
         
@@ -325,13 +325,31 @@
             return;
         }
         
-        let achRate = (aNum / tNum) * 100;
-        if(achRate >= 100) {
-            badgeEl.innerHTML = `<i class="fa-solid fa-arrow-up"></i> ${achRate.toFixed(1)}%`;
-            badgeEl.className = "achievement-indicator ind-up";
+        let achRate = 0;
+        let isSuccess = false;
+
+        if (isInverse) {
+            achRate = aNum === 0 ? 100 : (tNum / aNum) * 100;
+            isSuccess = (aNum <= tNum); 
+            
+            if(isSuccess) {
+                badgeEl.innerHTML = `<i class="fa-solid fa-arrow-down"></i> ${achRate.toFixed(1)}%`;
+                badgeEl.className = "achievement-indicator ind-up"; 
+            } else {
+                badgeEl.innerHTML = `<i class="fa-solid fa-arrow-up"></i> ${achRate.toFixed(1)}%`;
+                badgeEl.className = "achievement-indicator ind-down"; 
+            }
         } else {
-            badgeEl.innerHTML = `<i class="fa-solid fa-arrow-down"></i> ${achRate.toFixed(1)}%`;
-            badgeEl.className = "achievement-indicator ind-down";
+            achRate = (aNum / tNum) * 100;
+            isSuccess = (achRate >= 100);
+
+            if(isSuccess) {
+                badgeEl.innerHTML = `<i class="fa-solid fa-arrow-up"></i> ${achRate.toFixed(1)}%`;
+                badgeEl.className = "achievement-indicator ind-up";
+            } else {
+                badgeEl.innerHTML = `<i class="fa-solid fa-arrow-down"></i> ${achRate.toFixed(1)}%`;
+                badgeEl.className = "achievement-indicator ind-down";
+            }
         }
     }
 
@@ -351,7 +369,6 @@
             let colMap = {};
             const headerRow = rawCSVLines[0];
 
-            // 🎯 FIXED Column AP detection (AP is Column 41 / Index 41)
             let apColumnIndex = 41; 
 
             months.forEach(m => {
@@ -409,7 +426,13 @@
                     if (!kpiName || kpiName.toLowerCase().includes("kpi name") || kpiName.toLowerCase().includes("category")) return;
 
                     let cleanNameLower = kpiName.trim().toLowerCase();
-                    let isRateKPI = cleanNameLower.includes("par %") || cleanNameLower.includes("repayment ratio") || cleanNameLower.includes("recovery ratio") || cleanNameLower.includes("%");
+                    
+                    let isRateKPI = cleanNameLower.includes("par") || 
+                                    cleanNameLower.includes("ratio") || 
+                                    cleanNameLower.includes("%") ||
+                                    cleanNameLower.includes("fresh loan") || 
+                                    cleanNameLower.includes("roll back") || 
+                                    cleanNameLower.includes("due");
 
                     let targetVal = "0";
                     let actualVal = "0";
@@ -421,9 +444,6 @@
                         varVal = cols[colMap[m].var] || "0%";
                     }
                     
-                    let isNeg = varVal.includes("-");
-
-                    // AP Column එකෙන් දත්ත කියවීම (MTD සඳහා)
                     let rawMtd = cols[apColumnIndex] || "0";
                     let mtdActualVal = formatDisplayValue(rawMtd, isRateKPI);
                     let growthVal = "--";
@@ -449,14 +469,25 @@
                     let aNum = cleanNumeric(actualVal);
                     
                     let targetSection = "growth & volume";
+                    let isInverseKPI = false; 
 
-                    if (cleanNameLower.includes("par %") || cleanNameLower.includes("repayment ratio") || cleanNameLower.includes("recovery ratio")) {
-                        targetSection = "portfolio quality";
-                        if (!activeSectionInjected.pq) {
-                            monthRows.push({ isCat: true, name: "Portfolio Quality" });
-                            activeSectionInjected.pq = true;
+                    if (cleanNameLower.includes("par") || cleanNameLower.includes("ratio") ||
+                        cleanNameLower.includes("fresh loan") || cleanNameLower.includes("roll back") || cleanNameLower.includes("due")) {
+                        
+                        if (!cleanNameLower.includes("repayment") && !cleanNameLower.includes("recovery") && !cleanNameLower.includes("collection")) {
+                            isInverseKPI = true;
                         }
-                    } else if (cleanNameLower.includes("collection") || cleanNameLower.includes("wo collection")) {
+                        
+                        if (cleanNameLower.includes("par") || cleanNameLower.includes("fresh loan") || cleanNameLower.includes("roll back") || cleanNameLower.includes("due") || cleanNameLower.includes("repayment")) {
+                            targetSection = "portfolio quality";
+                            if (!activeSectionInjected.pq) {
+                                monthRows.push({ isCat: true, name: "Portfolio Quality" });
+                                activeSectionInjected.pq = true;
+                            }
+                        }
+                    }
+                    
+                    if (cleanNameLower.includes("collection") || cleanNameLower.includes("wo collection") || cleanNameLower.includes("recovery ratio")) {
                         targetSection = "recoveries";
                         if (!activeSectionInjected.rec) {
                             monthRows.push({ isCat: true, name: "Recoveries (As per 31st Dec 2025)" });
@@ -470,14 +501,29 @@
                         }
                     }
 
+                    let displayVariance = varVal;
+                    let isNegativeBadge = varVal.includes("-");
+
+                    if (isInverseKPI) {
+                        if (tNum > 0) {
+                            let inverseAchRate = (tNum / (aNum === 0 ? 0.001 : aNum)) * 100;
+                            displayVariance = inverseAchRate.toFixed(1) + "%";
+                            isNegativeBadge = (aNum > tNum); 
+                        } else {
+                            displayVariance = aNum === 0 ? "100.0%" : "0.0%";
+                            isNegativeBadge = (aNum > 0);
+                        }
+                    }
+
                     monthRows.push({ 
                         name: kpiName, 
                         target: formatDisplayValue(targetVal, isRateKPI), 
                         actual: formatDisplayValue(actualVal, isRateKPI), 
-                        var: varVal, 
-                        isNeg: isNeg,
+                        var: displayVariance, 
+                        isNeg: isNegativeBadge,
                         mtdActual: mtdActualVal, 
-                        growth: growthVal
+                        growth: growthVal,
+                        isInverse: isInverseKPI
                     });
 
                     if (cleanNameLower === "glp" || cleanNameLower === "gross loan portfolio") { cardObj.glp.act = formatDisplayValue(actualVal, false); cardObj.glp.tgt = targetVal; }
@@ -532,23 +578,45 @@
                         align: 'end',
                         font: { family: 'DM Sans', size: 10, weight: 'bold' },
                         formatter: function(value, context) {
-                            let isRate = context.chart.data.labels[context.dataIndex].includes('%') || context.chart.data.labels[context.dataIndex].toLowerCase().includes('ratio');
+                            let labelStr = context.chart.data.labels[context.dataIndex].toLowerCase();
+                            let isRate = labelStr.includes('%') || labelStr.includes('ratio') || labelStr.includes('par') || labelStr.includes('fresh loan') || labelStr.includes('roll back') || labelStr.includes('due');
+                            
+                            let isInverse = (labelStr.includes('par') || labelStr.includes('fresh loan') || labelStr.includes('roll back') || labelStr.includes('due')) && !labelStr.includes('repayment') && !labelStr.includes('recovery');
+                            
                             let formattedValue = value >= 1e6 ? (value / 1e6).toFixed(1) + 'M' : value.toLocaleString();
                             if (isRate) formattedValue += '%';
 
                             if (context.datasetIndex === 0) return 'Tgt: ' + formattedValue;
                             
                             let targetVal = context.chart.data.datasets[0].data[context.dataIndex];
-                            let achPercentage = (!targetVal || targetVal === 0) ? 0 : (value / targetVal) * 100;
+                            let achPercentage = 0;
+                            
+                            if (isInverse) {
+                                achPercentage = value === 0 ? 100 : (!targetVal ? 0 : (targetVal / value) * 100);
+                            } else {
+                                achPercentage = (!targetVal || targetVal === 0) ? 0 : (value / targetVal) * 100;
+                            }
                             return 'Act: ' + formattedValue + ' (' + achPercentage.toFixed(1) + '%)';
                         },
-                        color: function(context) { return context.datasetIndex === 0 ? '#718096' : '#137333'; }
+                        color: function(context) { 
+                            if(context.datasetIndex === 0) return '#718096';
+                            
+                            let labelStr = context.chart.data.labels[context.dataIndex].toLowerCase();
+                            let isInverse = (labelStr.includes('par') || labelStr.includes('fresh loan') || labelStr.includes('roll back') || labelStr.includes('due')) && !labelStr.includes('repayment') && !labelStr.includes('recovery');
+                            
+                            if (isInverse) {
+                                let targetVal = context.chart.data.datasets[0].data[context.dataIndex];
+                                return (context.raw <= targetVal) ? '#137333' : '#C5221F'; 
+                            }
+                            return '#137333';
+                        }
                     },
                     tooltip: {
                         callbacks: {
                             label: function(context) {
                                 let labelVal = context.raw;
-                                let isRate = context.chart.data.labels[context.dataIndex].includes('%') || context.chart.data.labels[context.dataIndex].toLowerCase().includes('ratio');
+                                let labelStr = context.chart.data.labels[context.dataIndex].toLowerCase();
+                                let isRate = labelStr.includes('%') || labelStr.includes('ratio') || labelStr.includes('par') || labelStr.includes('fresh loan') || labelStr.includes('roll back') || labelStr.includes('due');
                                 return " " + context.dataset.label + ": " + labelVal.toLocaleString() + (isRate ? '%' : '');
                             }
                         }
@@ -590,10 +658,10 @@
         document.getElementById("card-disb").innerText = selected.cards.disb.act;
         document.getElementById("card-repay").innerText = selected.cards.repay.act;
 
-        setupIndicatorBadge("ind-glp", selected.cards.glp.tgt, selected.cards.glp.act);
-        setupIndicatorBadge("ind-clients", selected.cards.clients.tgt, selected.cards.clients.act);
-        setupIndicatorBadge("ind-disb", selected.cards.disb.tgt, selected.cards.disb.act);
-        setupIndicatorBadge("ind-repay", selected.cards.repay.tgt, selected.cards.repay.act);
+        setupIndicatorBadge("ind-glp", selected.cards.glp.tgt, selected.cards.glp.act, false);
+        setupIndicatorBadge("ind-clients", selected.cards.clients.tgt, selected.cards.clients.act, false);
+        setupIndicatorBadge("ind-disb", selected.cards.disb.tgt, selected.cards.disb.act, false);
+        setupIndicatorBadge("ind-repay", selected.cards.repay.tgt, selected.cards.repay.act, false);
 
         updateChartSegment();
 
@@ -608,7 +676,6 @@
             } else {
                 const badgeClass = row.isNeg ? "badge-danger" : "badge-success";
                 
-                // 🎯 වත්මන් මාසයට (systemCurrentMonthStr) පමණක් MTD සහ Growth පෙන්වීමේ Logic එක
                 let displayMtd = "";
                 let displayGrowth = "";
                 let growthStyle = "color: var(--text-muted);";
@@ -618,10 +685,19 @@
                     displayGrowth = row.growth;
                     
                     const isGrowthNeg = row.growth.includes("-");
-                    if(isGrowthNeg) {
-                        growthStyle = "color: var(--red-text);";
-                    } else if(row.growth !== "--") {
-                        growthStyle = "color: var(--green-text);";
+                    
+                    if (row.isInverse) {
+                        if(isGrowthNeg) {
+                            growthStyle = "color: var(--green-text);"; 
+                        } else if(row.growth !== "--") {
+                            growthStyle = "color: var(--red-text);"; 
+                        }
+                    } else {
+                        if(isGrowthNeg) {
+                            growthStyle = "color: var(--red-text);";
+                        } else if(row.growth !== "--") {
+                            growthStyle = "color: var(--green-text);";
+                        }
                     }
                 }
                 
