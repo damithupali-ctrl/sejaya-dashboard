@@ -435,7 +435,6 @@
 
                     let cleanNameLower = kpiName.trim().toLowerCase();
                     
-                    // 🎯 වැරැද්ද මෙතනින් නිවැරදි කරන ලදී: Fresh Loan, Roll Back, Due කියන ඒවා සංඛ්‍යා (Numbers) ලෙස පමණක් සලකයි.
                     let isRateKPI = cleanNameLower.includes("par") || 
                                     cleanNameLower.includes("ratio") || 
                                     cleanNameLower.includes("%");
@@ -471,25 +470,6 @@
                     let currentActualNum = cleanNumeric(actualVal);
                     let apActualNum = cleanNumeric(rawMtd);
                     
-                    if (isRateKPI) {
-                        let diff = currentActualNum - apActualNum;
-                        growthVal = (diff >= 0 ? "+" : "") + diff.toFixed(2) + "%";
-                    } else {
-                        // සාමාන්‍ය සංඛ්‍යාවල වර්ධනය ප්‍රතිශතයක් ලෙස පෙන්වීම
-                        if (apActualNum > 0) {
-                            let growthPct = ((currentActualNum - apActualNum) / apActualNum) * 100;
-                            // 🎯 Inverse KPIs (Fresh loan, Roll back, Due) සඳහා වර්ධනය අඩු වීම කොළ පැහැ වීමට සලකුණ සකසයි
-                            growthVal = (growthPct >= 0 ? "+" : "") + growthPct.toFixed(1) + "%";
-                        } else if (currentActualNum > 0) {
-                            growthVal = "+100.0%";
-                        } else {
-                            growthVal = "0.0%";
-                        }
-                    }
-
-                    let tNum = cleanNumeric(targetVal);
-                    let aNum = cleanNumeric(actualVal);
-                    
                     let targetSection = "growth & volume";
                     let isInverseKPI = false; 
 
@@ -506,6 +486,21 @@
                                 monthRows.push({ isCat: true, name: "Portfolio Quality" });
                                 activeSectionInjected.pq = true;
                             }
+                        }
+                    }
+
+                    // 🎯 Growth % සූත්‍රය සාමාන්‍ය සංඛ්‍යාවලට ගැලපෙන ලෙස නිවැරදි කිරීම
+                    if (isRateKPI) {
+                        let diff = currentActualNum - apActualNum;
+                        growthVal = (diff >= 0 ? "+" : "") + diff.toFixed(2) + "%";
+                    } else {
+                        if (apActualNum > 0) {
+                            let growthPct = ((currentActualNum - apActualNum) / apActualNum) * 100;
+                            growthVal = (growthPct >= 0 ? "+" : "") + growthPct.toFixed(1) + "%";
+                        } else if (currentActualNum > 0) {
+                            growthVal = "+100.0%";
+                        } else {
+                            growthVal = "0.0%";
                         }
                     }
                     
@@ -526,7 +521,10 @@
                     let displayVariance = varVal;
                     let isNegativeBadge = varVal.includes("-");
 
+                    // 🎯 Achievement % සූත්‍රය සාමාන්‍ය සංඛ්‍යාවලට (Inverse) ගැලපෙන ලෙස නිවැරදි කිරීම
                     if (isInverseKPI && m !== "yearend") {
+                        let tNum = cleanNumeric(targetVal);
+                        let aNum = cleanNumeric(actualVal);
                         if (tNum > 0) {
                             let inverseAchRate = (tNum / (aNum === 0 ? 0.001 : aNum)) * 100;
                             displayVariance = inverseAchRate.toFixed(1) + "%";
@@ -536,6 +534,8 @@
                             isNegativeBadge = (aNum > 0);
                         }
                     } else if (isInverseKPI && m === "yearend") {
+                        let tNum = cleanNumeric(targetVal);
+                        let aNum = cleanNumeric(actualVal);
                         isNegativeBadge = (aNum > tNum); 
                     } else if (!isInverseKPI && m === "yearend") {
                         isNegativeBadge = (cleanNumeric(varVal) < 100); 
@@ -559,8 +559,8 @@
 
                     if (dynamicChartData[targetSection]) {
                         dynamicChartData[targetSection].labels.push(kpiName);
-                        dynamicChartData[targetSection].targets.push(tNum);
-                        dynamicChartData[targetSection].actuals.push(aNum);
+                        dynamicChartData[targetSection].targets.push(cleanNumeric(targetVal));
+                        dynamicChartData[targetSection].actuals.push(cleanNumeric(actualVal));
                     }
                 });
 
@@ -712,11 +712,12 @@
                     
                     const isGrowthNeg = row.growth.includes("-");
                     
+                    // 🎯 Inverse KPIs (Fresh loan, Roll back, Due) සඳහා Growth වල වර්ණ තේරීමේ Logic එක නිවැරදි කිරීම
                     if (row.isInverse) {
                         if(isGrowthNeg) {
-                            growthStyle = "color: var(--green-text);"; 
+                            growthStyle = "color: var(--green-text);"; // අගය අඩු වී ඇත්නම් (හොඳයි) -> කොළ පාට
                         } else if(row.growth !== "--") {
-                            growthStyle = "color: var(--red-text);"; 
+                            growthStyle = "color: var(--red-text);"; // අගය වැඩි වී ඇත්නම් (නරකයි) -> රතු පාට
                         }
                     } else {
                         if(isGrowthNeg) {
