@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>KPI Performance Dashboard</title>
+    <title>KPI Performance Summary Dashboard</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
@@ -108,13 +108,14 @@
     <div class="top-bar-layout">
         <div class="header-card" style="width: 100%;">
             <div class="header-title">
-                <h1>KPI Performance Dashboard</h1>
+                <h1>KPI Performance Summary Dashboard</h1>
                 <p>Sejaya Micro Credit Limited</p>
             </div>
             <div class="brand-logo-box">
                 <img src="SMCL.LOGO.png" alt="Sejaya Logo">
             </div>
         </div>
+        <!-- 🎯 Dropdown එකට Year End එකතු කරන ලදී -->
         <select id="month-select" class="select-large" onchange="updateDashboard()">
             <option value="jan">January</option>
             <option value="feb">February</option>
@@ -128,6 +129,7 @@
             <option value="oct">October</option>
             <option value="nov">November</option>
             <option value="dec">December</option>
+            <option value="yearend">⭐ Year End Target</option>
         </select>
     </div>
 
@@ -247,7 +249,7 @@
     let data = {};
     let myChartInstance = null;
     let systemCurrentMonthStr = "jun"; 
-    const months = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+    const months = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec", "yearend"];
 
     window.onload = function() {
         const currentMonthIndex = new Date().getMonth(); 
@@ -370,8 +372,16 @@
             const headerRow = rawCSVLines[0];
 
             let apColumnIndex = 41; 
+            // 🎯 AM & AN Columns (Index 38 = AM, Index 39 = AN)
+            let amColumnIndex = 38;
+            let anColumnIndex = 39;
 
             months.forEach(m => {
+                if (m === "yearend") {
+                    colMap["yearend"] = { tgt: amColumnIndex, act: anColumnIndex, var: -1 };
+                    return;
+                }
+
                 let tgtIndex = -1;
                 let actIndex = -1;
                 let varIndex = -1;
@@ -441,7 +451,22 @@
                     if (colMap[m]) {
                         targetVal = cols[colMap[m].tgt] || "0";
                         actualVal = cols[colMap[m].act] || "0";
-                        varVal = cols[colMap[m].var] || "0%";
+                        if (m === "yearend") {
+                            // Year End සඳහා Achievement එක ගණනය කිරීම
+                            let tNumCalc = cleanNumeric(targetVal);
+                            let aNumCalc = cleanNumeric(actualVal);
+                            if (tNumCalc > 0) {
+                                if (cleanNameLower.includes("par") && !cleanNameLower.includes("repayment") && !cleanNameLower.includes("recovery")) {
+                                    varVal = (aNumCalc === 0 ? 100 : (tNumCalc / aNumCalc) * 100).toFixed(1) + "%";
+                                } else {
+                                    varVal = ((aNumCalc / tNumCalc) * 100).toFixed(1) + "%";
+                                }
+                            } else {
+                                varVal = "0.0%";
+                            }
+                        } else {
+                            varVal = cols[colMap[m].var] || "0%";
+                        }
                     }
                     
                     let rawMtd = cols[apColumnIndex] || "0";
@@ -504,7 +529,7 @@
                     let displayVariance = varVal;
                     let isNegativeBadge = varVal.includes("-");
 
-                    if (isInverseKPI) {
+                    if (isInverseKPI && m !== "yearend") {
                         if (tNum > 0) {
                             let inverseAchRate = (tNum / (aNum === 0 ? 0.001 : aNum)) * 100;
                             displayVariance = inverseAchRate.toFixed(1) + "%";
@@ -513,6 +538,10 @@
                             displayVariance = aNum === 0 ? "100.0%" : "0.0%";
                             isNegativeBadge = (aNum > 0);
                         }
+                    } else if (isInverseKPI && m === "yearend") {
+                        isNegativeBadge = (aNum > tNum); // Year End වලත් Inverse KPIs වල Actual වැඩි නම් රතු වේ
+                    } else if (!isInverseKPI && m === "yearend") {
+                        isNegativeBadge = (cleanNumeric(varVal) < 100); // සාමාන්‍ය KPIs වල 100% ට අඩු නම් රතු වේ
                     }
 
                     monthRows.push({ 
@@ -680,7 +709,8 @@
                 let displayGrowth = "";
                 let growthStyle = "color: var(--text-muted);";
 
-                if (m === systemCurrentMonthStr) {
+                // Year End වලදී MTD සහ Growth පෙන්වීම අවශ්‍ය නොවන බැවින් මඟහරියි
+                if (m === systemCurrentMonthStr && m !== "yearend") {
                     displayMtd = row.mtdActual;
                     displayGrowth = row.growth;
                     
