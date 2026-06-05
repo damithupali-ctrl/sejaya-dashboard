@@ -115,7 +115,6 @@
                 <img src="SMCL.LOGO.png" alt="Sejaya Logo">
             </div>
         </div>
-        <!-- 🎯 Dropdown එකට Year End එකතු කරන ලදී -->
         <select id="month-select" class="select-large" onchange="updateDashboard()">
             <option value="jan">January</option>
             <option value="feb">February</option>
@@ -372,7 +371,6 @@
             const headerRow = rawCSVLines[0];
 
             let apColumnIndex = 41; 
-            // 🎯 AM & AN Columns (Index 38 = AM, Index 39 = AN)
             let amColumnIndex = 38;
             let anColumnIndex = 39;
 
@@ -437,12 +435,10 @@
 
                     let cleanNameLower = kpiName.trim().toLowerCase();
                     
+                    // 🎯 වැරැද්ද මෙතනින් නිවැරදි කරන ලදී: Fresh Loan, Roll Back, Due කියන ඒවා සංඛ්‍යා (Numbers) ලෙස පමණක් සලකයි.
                     let isRateKPI = cleanNameLower.includes("par") || 
                                     cleanNameLower.includes("ratio") || 
-                                    cleanNameLower.includes("%") ||
-                                    cleanNameLower.includes("fresh loan") || 
-                                    cleanNameLower.includes("roll back") || 
-                                    cleanNameLower.includes("due");
+                                    cleanNameLower.includes("%");
 
                     let targetVal = "0";
                     let actualVal = "0";
@@ -452,11 +448,10 @@
                         targetVal = cols[colMap[m].tgt] || "0";
                         actualVal = cols[colMap[m].act] || "0";
                         if (m === "yearend") {
-                            // Year End සඳහා Achievement එක ගණනය කිරීම
                             let tNumCalc = cleanNumeric(targetVal);
                             let aNumCalc = cleanNumeric(actualVal);
                             if (tNumCalc > 0) {
-                                if (cleanNameLower.includes("par") && !cleanNameLower.includes("repayment") && !cleanNameLower.includes("recovery")) {
+                                if (cleanNameLower.includes("par") || cleanNameLower.includes("fresh loan") || cleanNameLower.includes("roll back") || cleanNameLower.includes("due")) {
                                     varVal = (aNumCalc === 0 ? 100 : (tNumCalc / aNumCalc) * 100).toFixed(1) + "%";
                                 } else {
                                     varVal = ((aNumCalc / tNumCalc) * 100).toFixed(1) + "%";
@@ -480,8 +475,10 @@
                         let diff = currentActualNum - apActualNum;
                         growthVal = (diff >= 0 ? "+" : "") + diff.toFixed(2) + "%";
                     } else {
+                        // සාමාන්‍ය සංඛ්‍යාවල වර්ධනය ප්‍රතිශතයක් ලෙස පෙන්වීම
                         if (apActualNum > 0) {
                             let growthPct = ((currentActualNum - apActualNum) / apActualNum) * 100;
+                            // 🎯 Inverse KPIs (Fresh loan, Roll back, Due) සඳහා වර්ධනය අඩු වීම කොළ පැහැ වීමට සලකුණ සකසයි
                             growthVal = (growthPct >= 0 ? "+" : "") + growthPct.toFixed(1) + "%";
                         } else if (currentActualNum > 0) {
                             growthVal = "+100.0%";
@@ -539,9 +536,9 @@
                             isNegativeBadge = (aNum > 0);
                         }
                     } else if (isInverseKPI && m === "yearend") {
-                        isNegativeBadge = (aNum > tNum); // Year End වලත් Inverse KPIs වල Actual වැඩි නම් රතු වේ
+                        isNegativeBadge = (aNum > tNum); 
                     } else if (!isInverseKPI && m === "yearend") {
-                        isNegativeBadge = (cleanNumeric(varVal) < 100); // සාමාන්‍ය KPIs වල 100% ට අඩු නම් රතු වේ
+                        isNegativeBadge = (cleanNumeric(varVal) < 100); 
                     }
 
                     monthRows.push({ 
@@ -608,7 +605,7 @@
                         font: { family: 'DM Sans', size: 10, weight: 'bold' },
                         formatter: function(value, context) {
                             let labelStr = context.chart.data.labels[context.dataIndex].toLowerCase();
-                            let isRate = labelStr.includes('%') || labelStr.includes('ratio') || labelStr.includes('par') || labelStr.includes('fresh loan') || labelStr.includes('roll back') || labelStr.includes('due');
+                            let isRate = labelStr.includes('%') || labelStr.includes('ratio') || labelStr.includes('par');
                             
                             let isInverse = (labelStr.includes('par') || labelStr.includes('fresh loan') || labelStr.includes('roll back') || labelStr.includes('due')) && !labelStr.includes('repayment') && !labelStr.includes('recovery');
                             
@@ -645,7 +642,7 @@
                             label: function(context) {
                                 let labelVal = context.raw;
                                 let labelStr = context.chart.data.labels[context.dataIndex].toLowerCase();
-                                let isRate = labelStr.includes('%') || labelStr.includes('ratio') || labelStr.includes('par') || labelStr.includes('fresh loan') || labelStr.includes('roll back') || labelStr.includes('due');
+                                let isRate = labelStr.includes('%') || labelStr.includes('ratio') || labelStr.includes('par');
                                 return " " + context.dataset.label + ": " + labelVal.toLocaleString() + (isRate ? '%' : '');
                             }
                         }
@@ -709,7 +706,6 @@
                 let displayGrowth = "";
                 let growthStyle = "color: var(--text-muted);";
 
-                // Year End වලදී MTD සහ Growth පෙන්වීම අවශ්‍ය නොවන බැවින් මඟහරියි
                 if (m === systemCurrentMonthStr && m !== "yearend") {
                     displayMtd = row.mtdActual;
                     displayGrowth = row.growth;
