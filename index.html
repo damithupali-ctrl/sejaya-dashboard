@@ -408,7 +408,12 @@
             });
 
             months.forEach((m, mIdx) => {
-                let monthRows = [];
+                // 🎯 වගුවේ පේළි ගබඩා කරන Arrays වෙන වෙනම වෙන් කරගැනීම
+                let catGrowthRows = [];
+                let catQualityRows = [];
+                let catRecoveryRows = [];
+                let catProductRows = [];
+                
                 let cardObj = {
                     glp: { act: "0", tgt: "0" },
                     clients: { act: "0", tgt: "0" },
@@ -422,9 +427,6 @@
                     "recoveries": { labels: [], targets: [], actuals: [] },
                     "product wise": { labels: [], targets: [], actuals: [] }
                 };
-
-                monthRows.push({ isCat: true, name: "Growth & Volume" });
-                let activeSectionInjected = { pq: false, rec: false, pw: false };
 
                 rawCSVLines.forEach((cols, idx) => {
                     if (idx === 0) return;
@@ -473,23 +475,24 @@
                     let targetSection = "growth & volume";
                     let isInverseKPI = false; 
 
-                    if (cleanNameLower.includes("par") || cleanNameLower.includes("ratio") ||
-                        cleanNameLower.includes("fresh loan") || cleanNameLower.includes("roll back") || cleanNameLower.includes("due")) {
-                        
-                        if (!cleanNameLower.includes("repayment") && !cleanNameLower.includes("recovery") && !cleanNameLower.includes("collection")) {
-                            isInverseKPI = true;
-                        }
-                        
-                        if (cleanNameLower.includes("par") || cleanNameLower.includes("fresh loan") || cleanNameLower.includes("roll back") || cleanNameLower.includes("due") || cleanNameLower.includes("repayment")) {
-                            targetSection = "portfolio quality";
-                            if (!activeSectionInjected.pq) {
-                                monthRows.push({ isCat: true, name: "Portfolio Quality" });
-                                activeSectionInjected.pq = true;
-                            }
-                        }
+                    // 🎯 මුලින්ම Inverse විය යුතු (අඩු වීම සුභදායී) Metrics හඳුනාගැනීම
+                    if (cleanNameLower.includes("par") || cleanNameLower.includes("fresh loan") || cleanNameLower.includes("roll back") || cleanNameLower.includes("due")) {
+                        isInverseKPI = true;
                     }
 
-                    // 🎯 Growth % සූත්‍රය සාමාන්‍ය සංඛ්‍යාවලට ගැලපෙන ලෙස නිවැරදි කිරීම
+                    // 🎯 රූපරාමු අනුව කාණ්ඩ හතර (Categories 4) නිවැරදිව වෙන්කිරීමේ නව පෙරහන් ලොජික් එක (Filtering Logic)
+                    if (cleanNameLower.includes("collection") || cleanNameLower.includes("wo collection")) {
+                        // 90-180, >180, සහ WO Collection පමණක් Recoveries එකට දමයි
+                        targetSection = "recoveries";
+                    } else if (cleanNameLower.includes("loan") && (cleanNameLower.includes("jlg") || cleanNameLower.includes("individual") || cleanNameLower.includes("divisahana") || cleanNameLower.includes("employee") || cleanNameLower.includes("gold") || cleanNameLower.includes("mortgage"))) {
+                        targetSection = "product wise";
+                    } else if (cleanNameLower.includes("par") || cleanNameLower.includes("repayment ratio") || cleanNameLower.includes("recovery ratio") || cleanNameLower.includes("fresh loan") || cleanNameLower.includes("roll back") || cleanNameLower.includes("due")) {
+                        // On time recovery ratio, Fresh loan, Roll back, Due සහ PAR සියල්ල Portfolio Quality වේ
+                        targetSection = "portfolio quality";
+                    } else {
+                        targetSection = "growth & volume";
+                    }
+
                     if (isRateKPI) {
                         let diff = currentActualNum - apActualNum;
                         growthVal = (diff >= 0 ? "+" : "") + diff.toFixed(2) + "%";
@@ -503,25 +506,10 @@
                             growthVal = "0.0%";
                         }
                     }
-                    
-                    if (cleanNameLower.includes("collection") || cleanNameLower.includes("wo collection") || cleanNameLower.includes("recovery ratio")) {
-                        targetSection = "recoveries";
-                        if (!activeSectionInjected.rec) {
-                            monthRows.push({ isCat: true, name: "Recoveries (As per 31st Dec 2025)" });
-                            activeSectionInjected.rec = true;
-                        }
-                    } else if (cleanNameLower.includes("loan") && (cleanNameLower.includes("jlg") || cleanNameLower.includes("individual") || cleanNameLower.includes("divisahana") || cleanNameLower.includes("employee") || cleanNameLower.includes("gold") || cleanNameLower.includes("mortgage"))) {
-                        targetSection = "product wise";
-                        if (!activeSectionInjected.pw) {
-                            monthRows.push({ isCat: true, name: "Product Wise GLP Breakdown" });
-                            activeSectionInjected.pw = true;
-                        }
-                    }
 
                     let displayVariance = varVal;
                     let isNegativeBadge = varVal.includes("-");
 
-                    // 🎯 Achievement % සූත්‍රය සාමාන්‍ය සංඛ්‍යාවලට (Inverse) ගැලපෙන ලෙස නිවැරදි කිරීම
                     if (isInverseKPI && m !== "yearend") {
                         let tNum = cleanNumeric(targetVal);
                         let aNum = cleanNumeric(actualVal);
@@ -541,7 +529,7 @@
                         isNegativeBadge = (cleanNumeric(varVal) < 100); 
                     }
 
-                    monthRows.push({ 
+                    let processedRowObj = { 
                         name: kpiName, 
                         target: formatDisplayValue(targetVal, isRateKPI), 
                         actual: formatDisplayValue(actualVal, isRateKPI), 
@@ -550,7 +538,13 @@
                         mtdActual: mtdActualVal, 
                         growth: growthVal,
                         isInverse: isInverseKPI
-                    });
+                    };
+
+                    // අදාළ Array එකට දත්ත තල්ලු කිරීම (Push)
+                    if (targetSection === "growth & volume") catGrowthRows.push(processedRowObj);
+                    else if (targetSection === "portfolio quality") catQualityRows.push(processedRowObj);
+                    else if (targetSection === "recoveries") catRecoveryRows.push(processedRowObj);
+                    else if (targetSection === "product wise") catProductRows.push(processedRowObj);
 
                     if (cleanNameLower === "glp" || cleanNameLower === "gross loan portfolio") { cardObj.glp.act = formatDisplayValue(actualVal, false); cardObj.glp.tgt = targetVal; }
                     if (cleanNameLower === "# of clients") { cardObj.clients.act = formatDisplayValue(actualVal, false); cardObj.clients.tgt = targetVal; }
@@ -564,10 +558,30 @@
                     }
                 });
 
+                // 🎯 නිවැරදි පිළිවෙලට Heading සමඟ පේළි (Rows) එකතු කිරීම
+                let finalMonthRows = [];
+                
+                if(catGrowthRows.length > 0) {
+                    finalMonthRows.push({ isCat: true, name: "Growth & Volume" });
+                    finalMonthRows = finalMonthRows.concat(catGrowthRows);
+                }
+                if(catQualityRows.length > 0) {
+                    finalMonthRows.push({ isCat: true, name: "Portfolio Quality" });
+                    finalMonthRows = finalMonthRows.concat(catQualityRows);
+                }
+                if(catRecoveryRows.length > 0) {
+                    finalMonthRows.push({ isCat: true, name: "Recoveries (As per 31st Dec 2025)" });
+                    finalMonthRows = finalMonthRows.concat(catRecoveryRows);
+                }
+                if(catProductRows.length > 0) {
+                    finalMonthRows.push({ isCat: true, name: "Product Wise GLP Breakdown" });
+                    finalMonthRows = finalMonthRows.concat(catProductRows);
+                }
+
                 data[m] = {
                     cards: cardObj,
                     chartSegments: dynamicChartData,
-                    rows: monthRows
+                    rows: finalMonthRows
                 };
             });
 
@@ -712,12 +726,11 @@
                     
                     const isGrowthNeg = row.growth.includes("-");
                     
-                    // 🎯 Inverse KPIs (Fresh loan, Roll back, Due) සඳහා Growth වල වර්ණ තේරීමේ Logic එක නිවැරදි කිරීම
                     if (row.isInverse) {
                         if(isGrowthNeg) {
-                            growthStyle = "color: var(--green-text);"; // අගය අඩු වී ඇත්නම් (හොඳයි) -> කොළ පාට
+                            growthStyle = "color: var(--green-text);"; 
                         } else if(row.growth !== "--") {
-                            growthStyle = "color: var(--red-text);"; // අගය වැඩි වී ඇත්නම් (නරකයි) -> රතු පාට
+                            growthStyle = "color: var(--red-text);"; 
                         }
                     } else {
                         if(isGrowthNeg) {
